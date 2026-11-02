@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Next-Word Game – How Generative AI Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#2e7d32; --green-d:#1b5e20; --green-l:#e8f5e9; --mint:#c8e6c9;
+    --sun:#ffb300; --sky:#4fc3f7; --red:#e53935; --ink:#1f2d1f; --paper:#fbfdf7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Baloo 2",system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:20px}
+  header{background:var(--green);color:#fff;padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{margin:0;font-size:34px;line-height:1}
+  header p{margin:0;opacity:.9;font-size:18px}
+  .logo{font-size:44px}
+  nav{display:flex;gap:10px;padding:14px 24px;background:var(--green-l);flex-wrap:wrap}
+  nav button{font:inherit;font-weight:700;font-size:20px;border:3px solid var(--green);background:#fff;color:var(--green);border-radius:999px;padding:6px 20px;cursor:pointer}
+  nav button.on{background:var(--green);color:#fff}
+  main{max-width:1000px;margin:0 auto;padding:24px}
+  .card{background:#fff;border:3px solid var(--mint);border-radius:24px;padding:28px;box-shadow:0 6px 0 var(--mint)}
+  h2{margin:0 0 6px;color:var(--green-d);font-size:30px}
+  .hint{margin:0 0 20px;color:#4b5b4b;font-size:19px}
+  .sentence{font-size:40px;font-weight:800;line-height:1.3;margin:10px 0 24px;min-height:60px}
+  .blank{display:inline-block;min-width:140px;border-bottom:5px dashed var(--sun);color:var(--green);text-align:center}
+  .opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+  .opt{font:inherit;font-weight:800;font-size:28px;padding:16px;border-radius:18px;border:3px solid var(--green);background:#fff;color:var(--green-d);cursor:pointer;transition:transform .1s}
+  .opt:hover{transform:translateY(-3px)}
+  .opt.pick{background:var(--sun);border-color:var(--sun);color:#fff}
+  .opt.flash{background:var(--sky);border-color:var(--sky);color:#fff}
+  .opt:disabled{cursor:default}
+  .bars{margin-top:22px;display:none}
+  .bar{display:grid;grid-template-columns:150px 1fr 60px;align-items:center;gap:12px;margin:8px 0;font-weight:700}
+  .track{background:var(--green-l);border-radius:999px;height:26px;overflow:hidden}
+  .fill{height:100%;background:var(--green);width:0;border-radius:999px;transition:width .8s ease}
+  .msg{font-size:24px;font-weight:700;margin:18px 0 0;min-height:36px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:20px}
+  .btn{font:inherit;font-weight:800;font-size:22px;border:none;border-radius:16px;padding:12px 24px;cursor:pointer;background:var(--green);color:#fff;box-shadow:0 4px 0 var(--green-d)}
+  .btn.alt{background:#fff;color:var(--green);border:3px solid var(--green);box-shadow:none}
+  .btn.sun{background:var(--sun);box-shadow:0 4px 0 #c78100}
+  .btn:active{transform:translateY(3px);box-shadow:none}
+  .score{margin-left:auto;font-weight:800;font-size:24px;color:var(--green-d)}
+  .toggle{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;user-select:none}
+  .toggle input{width:26px;height:26px;accent-color:var(--sun)}
+  .built{font-size:38px;font-weight:800;line-height:1.4;min-height:110px;padding:18px;border-radius:18px;background:var(--green-l);margin-bottom:18px}
+  .built span{display:inline-block;animation:pop .35s ease}
+  .built .new{color:var(--sun)}
+  @keyframes pop{from{transform:scale(.4);opacity:0}to{transform:scale(1);opacity:1}}
+  .chance{display:block;font-size:17px;font-weight:700;opacity:.8}
+  .tf{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
+  .tf .btn{font-size:28px;padding:16px 30px}
+  .robot{font-size:22px;background:var(--green-l);border-radius:18px;padding:16px 20px;margin-bottom:14px}
+  .tip{margin-top:26px;background:#fff8e1;border:3px dashed var(--sun);border-radius:18px;padding:14px 20px;font-size:19px}
+  .hidden{display:none}
+  .good{color:var(--green)} .bad{color:var(--red)}
+  @media (max-width:600px){ .sentence,.built{font-size:28px} .opt{font-size:22px} .bar{grid-template-columns:100px 1fr 50px} }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🌱🤖</div>
+  <div>
+    <h1>The Next-Word Game</h1>
+    <p>Generative AI is a super-guesser: it guesses the next word, again and again!</p>
+  </div>
+</header>
+<nav>
+  <button data-tab="guess" class="on">1 · Guess the Word</button>
+  <button data-tab="build">2 · Be the AI</button>
+  <button data-tab="check">3 · True or Made-up?</button>
+</nav>
+
+<main>
+  <!-- GAME 1 -->
+  <section id="guess" class="card">
+    <h2>Game 1 · Guess the Next Word</h2>
+    <p class="hint">Can you guess what the AI would say next? Pick a word, then see the AI's guesses.</p>
+    <div class="sentence" id="g-sent"></div>
+    <div class="opts" id="g-opts"></div>
+    <div class="bars" id="g-bars"></div>
+    <div class="msg" id="g-msg"></div>
+    <div class="row">
+      <button class="btn" id="g-next">Next sentence ➜</button>
+      <div class="score">⭐ <span id="g-score">0</span> / <span id="g-total">0</span></div>
+    </div>
+    <div class="tip">💡 <b>Ask the class:</b> Why did most of you pick the same word? Because we've heard it many times! AI learns the same way, by reading lots and lots of sentences.</div>
+  </section>
+
+  <!-- GAME 2 -->
+  <section id="build" class="card hidden">
+    <h2>Game 2 · Be the AI: Build a Sentence</h2>
+    <p class="hint">The AI writes one word at a time. Click a word yourself, or press 🎲 to let the AI roll the dice. Bigger chance = more likely!</p>
+    <div class="built" id="b-text"></div>
+    <div class="opts" id="b-opts"></div>
+    <div class="row">
+      <button class="btn sun" id="b-roll">🎲 Let the AI choose</button>
+      <button class="btn alt" id="b-auto">▶ Write the whole sentence</button>
+      <button class="btn alt" id="b-reset">↺ Start again</button>
+      <label class="toggle"><input type="checkbox" id="b-silly"> 🤪 Silly mode</label>
+    </div>
+    <div class="tip">💡 <b>Try this:</b> Press “Start again” and let the AI write the sentence 3 times. Is it the same every time? No! The AI rolls dice, so its answer can change.<br>
+    Turn on <b>Silly mode</b>: now unlikely words get a bigger chance, and the AI starts saying funny, wrong things. That's why we always check!</div>
+  </section>
+
+  <!-- GAME 3 -->
+  <section id="check" class="card hidden">
+    <h2>Game 3 · True or Made-up?</h2>
+    <p class="hint">The AI wrote these sentences. They all <i>sound</i> sure! Is each one true, or did the AI make it up?</p>
+    <div class="robot">🤖 <b>AI says:</b> <span id="c-text"></span></div>
+    <div class="tf">
+      <button class="btn" id="c-true">✅ True</button>
+      <button class="btn sun" id="c-fake">🤥 Made-up</button>
+    </div>
+    <div class="msg" id="c-msg"></div>
+    <div class="row">
+      <button class="btn alt" id="c-next">Next ➜</button>
+      <div class="score">⭐ <span id="c-score">0</span> / <span id="c-total">0</span></div>
+    </div>
+    <div class="tip">💡 <b>Remember:</b> AI picks words that <i>sound</i> right, not words it knows are true. Always ask: “How can we check this?” Ask a teacher, a parent, or a good book!</div>
+  </section>
+</main>
+
+<script>
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+    ['guess','build','check'].forEach(id=>document.getElementById(id).classList.toggle('hidden',id!==b.dataset.tab));
+  };
+});
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
+
+/* ---------- GAME 1 ---------- */
+const G=[
+  {s:"Plants need sun and ___",o:[["water",70],["soil",18],["music",8],["pizza",4]]},
+  {s:"Turn off the ___ to save water.",o:[["tap",75],["light",12],["TV",9],["moon",4]]},
+  {s:"Put the plastic bottle in the recycling ___",o:[["bin",80],["box",12],["fridge",5],["ocean",3]]},
+  {s:"Bees help flowers make ___",o:[["honey",45],["fruit",35],["seeds",15],["homework",5]]},
+  {s:"Trees give us clean ___",o:[["air",78],["water",12],["shade",7],["shoes",3]]},
+  {s:"Switch off the lights to save ___",o:[["energy",72],["money",20],["time",5],["cookies",3]]},
+  {s:"We should not throw rubbish in the ___",o:[["sea",50],["street",35],["bin",10],["sky",5]]},
+  {s:"The sun gives us light and ___",o:[["heat",68],["energy",22],["rain",7],["candy",3]]},
+];
+let gOrder=shuffle(G),gi=0,gScore=0,gTotal=0;
+function gShow(){
+  const q=gOrder[gi%gOrder.length];
+  document.getElementById('g-sent').innerHTML=q.s.replace('___','<span class="blank">?</span>');
+  const box=document.getElementById('g-opts');box.innerHTML='';
+  const bars=document.getElementById('g-bars');bars.style.display='none';bars.innerHTML='';
+  document.getElementById('g-msg').textContent='';
+  shuffle(q.o).forEach(([w])=>{
+    const b=document.createElement('button');b.className='opt';b.textContent=w;
+    b.onclick=()=>gPick(q,w,b);box.appendChild(b);
+  });
+}
+function gPick(q,w,btn){
+  document.querySelectorAll('#g-opts .opt').forEach(x=>x.disabled=true);
+  btn.classList.add('pick');
+  const top=q.o[0][0];
+  document.querySelector('#g-sent .blank').textContent=w;
+  gTotal++; if(w===top)gScore++;
+  document.getElementById('g-score').textContent=gScore;
+  document.getElementById('g-total').textContent=gTotal;
+  const bars=document.getElementById('g-bars');bars.style.display='block';
+  bars.innerHTML='<div style="font-weight:800;margin-bottom:6px">🤖 How likely the AI thinks each word is:</div>'+
+    q.o.map(([x,p])=>`<div class="bar"><span>${x}</span><div class="track"><div class="fill" data-p="${p}"></div></div><span>${p}%</span></div>`).join('');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>bars.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.p+'%')));
+  const m=document.getElementById('g-msg');
+  m.innerHTML = w===top ? `<span class="good">🎉 You think like the AI! “${top}” was its top guess.</span>`
+    : `<span class="bad">Good try!</span> The AI's top guess was “<b>${top}</b>”, because it has seen it most often.`;
+}
+document.getElementById('g-next').onclick=()=>{gi++;gShow();};
+gShow();
+
+/* ---------- GAME 2 ---------- */
+const END='.';
+const NET={
+  START:[["Trees",40],["We",35],["Plants",25]],
+  Trees:[["give",50],["grow",30],["clean",20]],
+  give:[["us",70],["shade",30]],
+  us:[["clean",50],["fresh",30],["food",20]],
+  clean:[["air",70],["water",30]],
+  fresh:[["air",60],["water",40]],
+  grow:[["tall",50],["fruit",30],["slowly",20]],
+  We:[["should",50],["can",30],["love",20]],
+  should:[["save",40],["recycle",35],["plant",25]],
+  can:[["save",40],["recycle",30],["plant",30]],
+  love:[["trees",50],["nature",30],["bees",20]],
+  save:[["water",55],["energy",45]],
+  recycle:[["plastic",45],["paper",35],["bottles",20]],
+  plant:[["trees",60],["flowers",40]],
+  Plants:[["need",70],["give",30]],
+  need:[["sun",40],["water",40],["soil",20]],
+  and:[["water",30],["energy",25],["trees",25],["air",20]],
+};
+const ENDERS=[[END,60],["and",40]];
+const SILLY=["bananas","dinosaurs","pizza","rockets","penguins","socks","jelly"];
+let words=[],busy=false;
+function nextOpts(){
+  const last=words.length?words[words.length-1]:'START';
+  let o=(NET[last]||ENDERS).map(x=>x.slice());
+  if(last==='and'&&words.length>14) o=[[END,100]];
+  if(words.length>=12 && last!=='and' && !NET[last]) o=[[END,100]];
+  if(document.getElementById('b-silly').checked && last!=='START'){
+    const s=SILLY[Math.floor(Math.random()*SILLY.length)];
+    o.push([s,12]);
+    // flatten the chances: unlikely words become more likely
+    const tot0=o.reduce((a,[,p])=>a+Math.sqrt(p),0);
+    o=o.map(([w,p])=>[w,Math.sqrt(p)/tot0*100]);
+  }
+  const tot=o.reduce((a,[,p])=>a+p,0);
+  o=o.map(([w,p])=>[w,Math.round(p/tot*100)]);
+  return o.sort((a,b)=>b[1]-a[1]);
+}
+function bRender(){
+  const t=document.getElementById('b-text');
+  if(!words.length){t.innerHTML='<span style="opacity:.45">Choose the first word…</span>';}
+  else t.innerHTML=words.map((w,i)=>(i&&w!==END?' ':'')+`<span class="${i===words.length-1?'new':''}">${w}</span>`).join('');
+  const box=document.getElementById('b-opts');box.innerHTML='';
+  const done=words[words.length-1]===END;
+  document.getElementById('b-roll').disabled=done;document.getElementById('b-auto').disabled=done;
+  if(done){box.innerHTML='<div class="msg good">✨ The AI finished a sentence! Press “Start again” to see if it writes the same one.</div>';return;}
+  nextOpts().forEach(([w,p])=>{
+    const b=document.createElement('button');b.className='opt';b.dataset.w=w;
+    b.innerHTML=`${w===END?'⏹ (end)':w}<span class="chance">${p}% chance</span>`;
+    b.onclick=()=>{if(!busy){words.push(w);bRender();}};
+    box.appendChild(b);
+  });
+}
+function roll(){
+  return new Promise(res=>{
+    if(busy||words[words.length-1]===END)return res(false);
+    busy=true;
+    const btns=[...document.querySelectorAll('#b-opts .opt')];
+    const o=nextOpts.cache=btns.map(b=>[b.dataset.w,parseInt(b.querySelector('.chance').textContent)]);
+    let r=Math.random()*o.reduce((a,[,p])=>a+p,0),pick=o[0][0];
+    for(const [w,p] of o){if((r-=p)<0){pick=w;break;}}
+    let k=0,steps=10+Math.floor(Math.random()*5);
+    const spin=setInterval(()=>{
+      btns.forEach(b=>b.classList.remove('flash'));
+      btns[k%btns.length].classList.add('flash');k++;
+      if(k>=steps){clearInterval(spin);btns.forEach(b=>b.classList.remove('flash'));
+        const pb=btns.find(b=>b.dataset.w===pick);pb&&pb.classList.add('pick');
+        setTimeout(()=>{words.push(pick);busy=false;bRender();res(true);},450);}
+    },90);
+  });
+}
+document.getElementById('b-roll').onclick=roll;
+document.getElementById('b-auto').onclick=async()=>{while(words[words.length-1]!==END){if(!await roll())break;}};
+document.getElementById('b-reset').onclick=()=>{if(busy)return;words=[];bRender();};
+document.getElementById('b-silly').onchange=()=>{if(!busy)bRender();};
+bRender();
+
+/* ---------- GAME 3 ---------- */
+const C=[
+  ["Trees make oxygen that we breathe.",true,"Trees and plants make the oxygen we need."],
+  ["A plastic bottle turns into a tree after one week in the soil.",false,"Plastic takes hundreds of years to break down, and it never becomes a tree!"],
+  ["Turning off the tap while brushing your teeth saves water.",true,"You can save many litres of water every day."],
+  ["The Moon is made of recycled paper.",false,"The Moon is made of rock. The AI just put words together that sounded fun."],
+  ["Bees help flowers make fruit and seeds.",true,"Bees carry pollen from flower to flower."],
+  ["Penguins live in the Sahara desert.",false,"Most penguins live in cold places in the south of the world, not the hot desert."],
+  ["Glass can be recycled again and again.",true,"Glass can be melted and made into new glass many times."],
+  ["Plants grow twice as fast if you sing pop songs to them every hour.",false,"This sounds fun, but there is no proof. The AI made it sound true!"],
+  ["The sun gives plants the energy to grow.",true,"Plants use sunlight to make their food."],
+  ["Recycling one can gives you free electricity for a whole year.",false,"Recycling saves energy, but not that much! A made-up number can sound very sure."],
+];
+let cOrder=shuffle(C),ci=0,cScore=0,cTotal=0,cDone=false;
+function cShow(){cDone=false;document.getElementById('c-text').textContent=cOrder[ci%cOrder.length][0];document.getElementById('c-msg').textContent='';}
+function cAns(v){
+  if(cDone)return;cDone=true;
+  const [,truth,why]=cOrder[ci%cOrder.length];cTotal++;
+  const ok=v===truth;if(ok)cScore++;
+  document.getElementById('c-score').textContent=cScore;document.getElementById('c-total').textContent=cTotal;
+  document.getElementById('c-msg').innerHTML=(ok?'<span class="good">🎉 Correct!</span> ':'<span class="bad">Oops!</span> ')+
+    `This one is <b>${truth?'TRUE':'MADE-UP'}</b>. ${why}`;
+}
+document.getElementById('c-true').onclick=()=>cAns(true);
+document.getElementById('c-fake').onclick=()=>cAns(false);
+document.getElementById('c-next').onclick=()=>{ci++;cShow();};
+cShow();
+</script>
+</body>
+</html>
